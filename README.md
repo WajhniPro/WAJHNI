@@ -1,2 +1,95 @@
-# WAJHNI
-**Wajhni (وجّهني)** is an AI-powered kiosk for government service centers in the Madinah Region. Citizens describe their needs in natural Arabic, and the system uses RAG, LangChain, FAISS, and Llama 3 via Groq API to identify the correct department, then prints an Arabic ticket with the queue number, required documents, and estimated wait time.
+# وجّهني — نظام التوجيه الذكي للخدمات الحكومية
+## إمارة منطقة المدينة المنورة
+
+---
+
+## هيكل المشروع
+
+```
+wajhni/
+│
+├── main.py                  ← نقطة التشغيل الرئيسية
+├── config.env               ← ضع مفتاح API هنا
+├── requirements.txt         ← المكتبات المطلوبة
+│
+├── core/
+│   ├── rag_engine.py        ← محرك RAG + LangChain + Llama
+│   └── ticket_generator.py  ← مولّد التذاكر بالعربية
+│
+├── data/
+│   └── services.json        ← بيانات الخدمات (عدّلها حسب المركز)
+│
+└── output/
+    └── ticket_*.txt         ← التذاكر المطبوعة (تُنشأ تلقائياً)
+```
+
+---
+
+## خطوات التشغيل
+
+### 1. تثبيت المكتبات
+```bash
+pip install -r requirements.txt
+```
+
+### 2. الحصول على مفتاح Groq (مجاني)
+- اذهب إلى: https://console.groq.com
+- أنشئ حساباً مجانياً
+- انسخ مفتاح API
+
+### 3. ضع المفتاح في ملف الإعدادات
+افتح `config.env` وعدّل هذا السطر:
+```
+GROQ_API_KEY=ضع_مفتاحك_هنا
+```
+
+### 4. تشغيل النظام
+```bash
+python main.py
+```
+
+---
+
+## كيف يعمل النظام؟
+
+```
+المستفيد يكتب طلبه بالعربية
+            ↓
+    RAG يبحث في services.json
+            ↓
+    Llama يختار الخدمة الأنسب
+            ↓
+    طباعة تذكرة بالعربية الكاملة
+```
+
+---
+
+## إضافة خدمات جديدة
+
+افتح `data/services.json` وأضف خدمة بهذا الشكل:
+
+```json
+{
+  "id": "S013",
+  "service_name": "اسم الخدمة",
+  "keywords": ["كلمة1", "كلمة2", "كلمة3"],
+  "department": "اسم القسم",
+  "window_number": 7,
+  "required_documents": ["المستند 1", "المستند 2"],
+  "estimated_time_minutes": 20,
+  "description": "وصف مختصر للخدمة"
+}
+```
+
+---
+
+## أمثلة على طلبات تعمل
+
+| طلب المستفيد | الخدمة التي يُوجَّه إليها |
+|---|---|
+| ابغى اجدد هويتي | تجديد بطاقة الهوية الوطنية |
+| ضيعت هويتي | استخراج بدل فاقد |
+| ابغى اجدد رخصتي | تجديد رخصة القيادة |
+| عندي حادث سيارة | الإبلاغ عن حادث مروري |
+| ابغى افتح محل | تسجيل منشأة تجارية جديدة |
+| وين طلبي | الاستعلام عن معاملة |

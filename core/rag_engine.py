@@ -10,24 +10,26 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 #from langchain.chains import RetrievalQA
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.output_parser import StrOutputParser
-
+import pandas as pd
 
 class WajhniRAGEngine:
-    
+
     def __init__(self, services_file: str, api_key: str, model_name: str):
-       
+
         self.services_file = services_file
         self.api_key = api_key
         self.model_name = model_name
         self.services_data = []
+        self.excel_data = None
         self.vectorstore = None
         self.llm = None
         self.rag_chain = None
 
-    
-    
+    def load_excel_times(self):
+        self.excel_data = pd.read_excel("data/sedco_dashboard_full_3000_formatted.xlsx")
+
     def load_services(self) -> list:
-        
+
         with open(self.services_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
@@ -35,7 +37,16 @@ class WajhniRAGEngine:
         documents = []
 
         for service in self.services_data:
-            
+
+            estimated_time = service["estimated_time_minutes"]
+
+            match = self.excel_data[
+                self.excel_data["service_name"] == service["service_name"]
+            ]
+
+            if not match.empty:
+                estimated_time = int(match["مدة_الخدمة_دقيقة"].mean())
+
             content = f"""
 الخدمة: {service['service_name']}
 القسم: {service['department']}
@@ -43,17 +54,17 @@ class WajhniRAGEngine:
 الوصف: {service['description']}
 الكلمات المفتاحية: {', '.join(service['keywords'])}
 المستندات المطلوبة: {', '.join(service['required_documents'])}
-الوقت التقديري: {service['estimated_time_minutes']} دقيقة
+الوقت التقديري: {estimated_time} دقيقة
 رقم الخدمة: {service['id']}
-            """.strip()
-
+""".strip()
             doc = Document(
                 page_content=content,
                 metadata={
                     "service_id":    service["id"],
-                    "service_name":  service["service_name"],
+                    "service_name":  service["اسم_الخدمة"],
                     "department":    service["department"],
                     "window_number": service["window_number"],
+                    "estimated_time_minutes": estimated_time,
                 }
             )
             documents.append(doc)
@@ -61,25 +72,17 @@ class WajhniRAGEngine:
         print(f" تم تحميل {len(documents)} خدمة من الملف.")
         return documents
 
-   
-   
     def build_vectorstore(self, documents: list):
-       
 
-       
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
             model_kwargs={"device": "cpu"}
         )
 
         self.vectorstore = FAISS.from_documents(documents, embeddings)
-        
 
-    
-   
-   
     def setup_llm(self):
-        
+
         self.llm = ChatGroq(
             groq_api_key=self.api_key,
             model_name=self.model_name,
@@ -89,15 +92,14 @@ class WajhniRAGEngine:
         print(f" تم تهيئة النموذج: {self.model_name}")
 
     # 4. بناء RAG Chain
-    
+
     def build_chain(self):
-        
+
         retriever = self.vectorstore.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 3}   # جلب أقرب 3 خدمات للمقارنة
         )
 
-        
         prompt_template = ChatPromptTemplate.from_messages([
             ("system", """أنت موجه ذكي في مركز الخدمة الحكومية الشامل بإمارة منطقة المدينة المنورة.
 مهمتك الوحيدة هي تحديد الخدمة المناسبة للمستفيد بدقة تامة.
@@ -108,7 +110,7 @@ class WajhniRAGEngine:
 3. إذا لم تجد خدمة مناسبة، قل ذلك بوضوح
 4. ردك يجب أن يكون JSON فقط بدون أي نص إضافي
 5. جميع القيم في JSON يجب أن تكون باللغة العربية
-             
+
 
 الخدمات المتاحة في النظام:
 {context}
@@ -128,11 +130,9 @@ class WajhniRAGEngine:
             ("human", "طلب المستفيد: {question}")
         ])
 
-        
         def format_docs(docs):
             return "\n\n---\n\n".join([doc.page_content for doc in docs])
 
-        
         self.rag_chain = (
             {
                 "context":  retriever | format_docs,
@@ -145,11 +145,8 @@ class WajhniRAGEngine:
 
         print("تم بناء سلسلة RAG بنجاح.")
 
-    
-    
-    
     def process_request(self, user_input: str) -> dict:
-        
+
         print(f"\n🔍 معالجة الطلب: {user_input}")
 
         try:
@@ -166,35 +163,42 @@ class WajhniRAGEngine:
                 "message": f"حدث خطأ أثناء معالجة الطلب: {str(e)}"
             }
 
-    
-    
     def _parse_llm_response(self, raw_response: str) -> dict:
-        
+
         import re
 
-        
         cleaned = raw_response.strip()
 
-       
         json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
         if json_match:
             json_str = json_match.group()
             result = json.loads(json_str)
             result["error"] = False
+
+            for service in self.services_data:
+                if service["id"] == result["service_id"]:
+                    match = self.excel_data[
+                        self.excel_data["service_name"] == service["service_name"]
+                    ]
+
+                    if not match.empty:
+                        result["estimated_time_minutes"] = int(
+                            match.iloc[0]["estimated_time_minutes"]
+                        )
+
+                    break
+
             return result
 
-        
         return {
             "error": True,
             "message": "لم أتمكن من تحديد الخدمة المناسبة. يرجى توضيح طلبك."
         }
 
-    
-    
-    
     def initialize(self):
-        
+
         print("\n بدء تهيئة نظام وجّهني...\n")
+        self.load_excel_times()
         documents = self.load_services()
         self.build_vectorstore(documents)
         self.setup_llm()

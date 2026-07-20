@@ -50,7 +50,7 @@ def run_kiosk(engine: WajhniRAGEngine, ticket_gen: TicketGenerator):
 
     gender = input(" هل أنت (ذكر / أنثى)؟: ").strip()
     status = input(" هل أنت (مواطن / مقيم)؟: ").strip()
-    print(f"\n أهلاً بك.. تم تسجيل البيانات كـ ({gender} - {status}) وجاري خدمتك.\n"
+    print(f"\n أهلاً بك.. تم تسجيل البيانات كـ ({gender} - {status}) وجاري خدمتك.\n")
           
     while True:
         # ── استقبال طلب المستفيد 

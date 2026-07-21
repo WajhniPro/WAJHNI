@@ -164,4 +164,6 @@ class TicketGenerator:
             "service_name":   service_result.get("service_name"),
             "department":     service_result.get("department"),
             "window_number":  window_number,
+            "gender":         service_result.get("gender"),
+            "status":         service_result.get("status")
         }

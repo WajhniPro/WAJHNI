@@ -48,8 +48,21 @@ def run_kiosk(engine: WajhniRAGEngine, ticket_gen: TicketGenerator):
     print("   اكتب 'خروج' للإنهاء")
     print("="*52 + "\n")
 
-    gender = input(" هل أنت (ذكر / أنثى)؟: ").strip()
-    status = input(" هل أنت (مواطن / مقيم)؟: ").strip()
+     while True:
+        gender = input(" هل أنت (ذكر / أنثى)؟: ").strip()
+        if gender in ["ذكر", "أنثى", "انثى"]:
+            if gender == "انثى":
+                gender = "أنثى"
+            break
+        print(" الرجاء اكتب ذكر أو أنثى.")
+ 
+    # ── التحقق من إدخال الحالة 
+    while True:
+        status = input(" هل أنت (مواطن / مقيم)؟: ").strip()
+        if status in ["مواطن", "مقيم"]:
+            break
+        print(" الرجاء اكتب مواطن أو مقيم.")
+ 
     print(f"\n أهلاً بك.. تم تسجيل البيانات كـ ({gender} - {status}) وجاري خدمتك.\n")
           
     while True:
@@ -79,6 +92,10 @@ def run_kiosk(engine: WajhniRAGEngine, ticket_gen: TicketGenerator):
 
         # ── توليد وطباعة التذكرة 
         if not result.get("error"):
+            # حفظ بيانات المستفيد (الجنس والحالة) لتُطبع لاحقاً في التذكرة
+            result["gender"] = gender
+            result["status"] = status
+            
             confidence = result.get("confidence", "")
             if confidence == "منخفضة":
                 print("\n  النظام غير متأكد تماماً من طلبك.")

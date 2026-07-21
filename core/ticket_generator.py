@@ -63,6 +63,11 @@ class TicketGenerator:
         now      = datetime.now()
         date_str = now.strftime("%Y/%m/%d")
         time_str = now.strftime("%H:%M")
+     
+      # بيانات المستفيد 
+        gender = service_result.get("gender", "") or "غير محدد"
+        status = service_result.get("status", "") or "غير محدد"
+        category_str = f"{status} - {gender}"
 
         docs_list = "\n".join([
             f"   {i+1}. {doc}"

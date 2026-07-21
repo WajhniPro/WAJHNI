@@ -83,7 +83,8 @@ class TicketGenerator:
 ║   رقم التذكرة:  {ticket_data['waiting_number']:<33}║
 ║   التاريخ:      {date_str:<33}║
 ║   الوقت:        {time_str:<33}║
-║   الفئة:        {category_str:<33}║                                              ║
+║   الفئة:        {category_str:<33}║ 
+║
 ╠══════════════════════════════════════════════════╣
 ║   القسم المعني:                                  ║
 ║   {service_result.get('department', ''):<48}║

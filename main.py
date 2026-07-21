@@ -92,7 +92,7 @@ def run_kiosk(engine: WajhniRAGEngine, ticket_gen: TicketGenerator):
 
         # ── توليد وطباعة التذكرة 
         if not result.get("error"):
-            # حفظ بيانات المستفيد (الجنس والحالة) لتُطبع لاحقاً في التذكرة
+            # حفظ بيانات المستفيد لتُطبع لاحقاً في التذكرة
             result["gender"] = gender
             result["status"] = status
             

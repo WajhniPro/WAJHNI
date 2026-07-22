@@ -1,16 +1,9 @@
 """
 وجّهني — طبقة API
 =====================================================================
-هذا الملف يفتح main.py (الذي كان مبنياً على واجهة سطر الأوامر فقط)
-كخادم HTTP حتى تقدر واجهة المتصفح (wajhni-kiosk-ui.html) تتواصل مع
-نفس محرك RAG (core/rag_engine.py) ونفس مولّد التذاكر
+هذا الملف يفتح main.py كخادم HTTP حتى تقدر واجهة المتصفح (wajhni-kiosk-ui.html)
+تتواصل مع نفس محرك RAG (core/rag_engine.py) ونفس مولّد التذاكر
 (core/ticket_generator.py) بدون أي تغيير في منطقهما الأساسي.
-
-التشغيل محلياً:
-    pip install -r requirements.txt
-    uvicorn server:app --host 0.0.0.0 --port 8000 --reload
-
-ثم افتح wajhni-kiosk-ui.html وغيّر API_BASE فيه إلى عنوان هذا الخادم.
 =====================================================================
 """
 
@@ -25,17 +18,19 @@ from pydantic import BaseModel
 from core.rag_engine import WajhniRAGEngine
 from core.ticket_generator import TicketGenerator
 
-load_dotenv("config.env")
+# تحميل المتغيرات من config.env محلياً إن وجد، أو من النظام مباشرة على Render
+if os.path.exists("config.env"):
+    load_dotenv("config.env")
+else:
+    load_dotenv()
 
-GROQ_API_KEY  = os.getenv("GROQ_API_KEY")
 LLAMA_MODEL   = os.getenv("LLAMA_MODEL", "llama-3.3-70b-versatile")
 SERVICES_FILE = os.getenv("SERVICES_FILE", "data/services.json")
 OUTPUT_FOLDER = "output"
 
 app = FastAPI(title="Wajhni API — وجّهني")
 
-# يسمح لملف HTML بالاتصال بالخادم من أي أصل أثناء التطوير.
-# عند النشر الفعلي، يفضّل تحديد allow_origins بعنوان موقعك بدل "*"
+# السماح للواجهة بالاتصال بالخادم
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,15 +46,20 @@ ticket_gen: Optional[TicketGenerator] = None
 def startup():
     global engine, ticket_gen
 
-    if not GROQ_API_KEY or GROQ_API_KEY == "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":
+    # قراءة مفتاح Groq وتنظيفه من أي مسافات أو علامات تنصيص زائدة
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        groq_api_key = groq_api_key.strip().strip('"').strip("'")
+
+    # التحقق المرن من وجود المفتاح
+    if not groq_api_key:
         raise RuntimeError(
-            "مفتاح Groq API غير موجود. ضعه في متغير البيئة GROQ_API_KEY "
-            "أو في ملف config.env قبل التشغيل."
+            "مفتاح Groq API غير موجود. ضعه في متغير البيئة GROQ_API_KEY في Render."
         )
 
     engine = WajhniRAGEngine(
         services_file=SERVICES_FILE,
-        api_key=GROQ_API_KEY,
+        api_key=groq_api_key,
         model_name=LLAMA_MODEL,
     )
     engine.initialize()
@@ -85,8 +85,7 @@ def health():
 @app.get("/api/services")
 def list_services():
     """يعيد قائمة الخدمات كما هي في data/services.json — تُستخدم لعرض
-    أمثلة/شرائح الاقتراح في الواجهة، وليس للمطابقة (المطابقة تتم عبر
-    محرك RAG نفسه)."""
+    أمثلة/شرائح الاقتراح في الواجهة، وليس للمطابقة."""
     if engine is None:
         raise HTTPException(503, "المحرك لم يُهيَّأ بعد")
     return engine.services_data
@@ -100,8 +99,6 @@ def process_request(payload: RequestIn):
         raise HTTPException(400, "النص فارغ")
 
     result = engine.process_request(payload.text)
-    # نحتفظ بالجنس/الحالة مع النتيجة لأغراض التذكرة فقط (لا تؤثر على المطابقة،
-    # تماماً كما في main.py الأصلي)
     result["gender"] = payload.gender
     result["status"] = payload.status
     return result

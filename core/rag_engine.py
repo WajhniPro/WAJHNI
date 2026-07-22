@@ -72,12 +72,12 @@ class WajhniRAGEngine:
 
    def build_vectorstore(self, documents: list):
     # استخدام API سحابي خفيف بدلاً من تحميل الموديل على الخادم لحل مشكلة OOM
-    hf_token = os.getenv("HF_TOKEN")
+       hf_token = os.getenv("HF_TOKEN")
 
-    embeddings = HuggingFaceInferenceAPIEmbeddings(
-        api_key=hf_token,
-        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
+       embeddings = HuggingFaceInferenceAPIEmbeddings(
+          api_key=hf_token,
+          model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+            )
 
     self.vectorstore = FAISS.from_documents(documents, embeddings)
 

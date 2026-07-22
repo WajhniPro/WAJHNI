@@ -51,7 +51,7 @@ ticket_gen: Optional[TicketGenerator] = None
 def startup():
     global engine, ticket_gen
 
-    if not GROQ_API_KEY or GROQ_API_KEY == "your_groq_api_key_here":
+    if not GROQ_API_KEY or GROQ_API_KEY == "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":
         raise RuntimeError(
             "مفتاح Groq API غير موجود. ضعه في متغير البيئة GROQ_API_KEY "
             "أو في ملف config.env قبل التشغيل."

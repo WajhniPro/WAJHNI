@@ -73,10 +73,10 @@ class WajhniRAGEngine:
         return documents
 
     def build_vectorstore(self, documents: list):
-        # بناء Embeddings محلياً بسرعة فائقة واستهلاك ذاكرة ضئيل (<90MB RAM)
-        # دون الحاجة إلى API خارجي أو HF_TOKEN
+        # استخدام batch_size محدد لمنع الـ Spikes في الذاكرة وتفادي خطأ Status 137 على Render
         embeddings = FastEmbedEmbeddings(
-            model_name="BAAI/bge-small-en-v1.5"
+            model_name="BAAI/bge-small-en-v1.5",
+            batch_size=16
         )
 
         self.vectorstore = FAISS.from_documents(documents, embeddings)

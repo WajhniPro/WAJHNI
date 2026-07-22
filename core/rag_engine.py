@@ -70,7 +70,7 @@ class WajhniRAGEngine:
         print(f" تم تحميل {len(documents)} خدمة من الملف.")
         return documents
 
-   def build_vectorstore(self, documents: list):
+    def build_vectorstore(self, documents: list):
     # استخدام API سحابي خفيف بدلاً من تحميل الموديل على الخادم لحل مشكلة OOM
        hf_token = os.getenv("HF_TOKEN")
 

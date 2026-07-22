@@ -1,10 +1,5 @@
 """
-وجّهني — طبقة API
-=====================================================================
-هذا الملف يفتح main.py كخادم HTTP حتى تقدر واجهة المتصفح (wajhni-kiosk-ui.html)
-تتواصل مع نفس محرك RAG (core/rag_engine.py) ونفس مولّد التذاكر
-(core/ticket_generator.py) بدون أي تغيير في منطقهما الأساسي.
-=====================================================================
+وجّهني — طبقة API المتوافقة مع Vercel و index.html
 """
 
 import os
@@ -18,7 +13,7 @@ from pydantic import BaseModel
 from core.rag_engine import WajhniRAGEngine
 from core.ticket_generator import TicketGenerator
 
-# تحميل المتغيرات من config.env محلياً إن وجد، أو من النظام مباشرة على Render
+# تحميل المتغيرات
 if os.path.exists("config.env"):
     load_dotenv("config.env")
 else:
@@ -30,10 +25,11 @@ OUTPUT_FOLDER = "output"
 
 app = FastAPI(title="Wajhni API — وجّهني")
 
-# السماح للواجهة بالاتصال بالخادم
+# السماح للواجهة بالاتصال بالخادم بدون قيود CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -46,16 +42,12 @@ ticket_gen: Optional[TicketGenerator] = None
 def startup():
     global engine, ticket_gen
 
-    # قراءة مفتاح Groq وتنظيفه من أي مسافات أو علامات تنصيص زائدة
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
         groq_api_key = groq_api_key.strip().strip('"').strip("'")
 
-    # التحقق المرن من وجود المفتاح
     if not groq_api_key:
-        raise RuntimeError(
-            "مفتاح Groq API غير موجود. ضعه في متغير البيئة GROQ_API_KEY في Render."
-        )
+        raise RuntimeError("مفتاح GROQ_API_KEY غير موجود في متغيرات البيئة.")
 
     engine = WajhniRAGEngine(
         services_file=SERVICES_FILE,
@@ -63,12 +55,12 @@ def startup():
         model_name=LLAMA_MODEL,
     )
     engine.initialize()
-
     ticket_gen = TicketGenerator(output_folder=OUTPUT_FOLDER)
 
 
 class RequestIn(BaseModel):
-    text: str
+    query: Optional[str] = None
+    text: Optional[str] = None
     gender: Optional[str] = None
     status: Optional[str] = None
 
@@ -77,28 +69,33 @@ class TicketIn(BaseModel):
     result: dict
 
 
+# 1. مسار الفحص الرئيسي الجذر (Root) لرفع العلم الأخضر في الواجهة
+@app.get("/")
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "message": "Wajhni API is running online!"}
 
 
 @app.get("/api/services")
 def list_services():
-    """يعيد قائمة الخدمات كما هي في data/services.json — تُستخدم لعرض
-    أمثلة/شرائح الاقتراح في الواجهة، وليس للمطابقة."""
     if engine is None:
         raise HTTPException(503, "المحرك لم يُهيَّأ بعد")
     return engine.services_data
 
 
+# 2. دعم كلا المسارين /chat و /api/request لضمان التوافق التام
+@app.post("/chat")
 @app.post("/api/request")
 def process_request(payload: RequestIn):
     if engine is None:
         raise HTTPException(503, "المحرك لم يُهيَّأ بعد")
-    if not payload.text.strip():
+    
+    # قبول النص سواء جاء في حقل query أو text
+    user_text = payload.query or payload.text
+    if not user_text or not user_text.strip():
         raise HTTPException(400, "النص فارغ")
 
-    result = engine.process_request(payload.text)
+    result = engine.process_request(user_text)
     result["gender"] = payload.gender
     result["status"] = payload.status
     return result

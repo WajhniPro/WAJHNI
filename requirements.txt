@@ -6,3 +6,6 @@ groq>=0.4.0
 requests
 python-multipart
 pandas
+openpyxl
+langchain-core
+langchain-groq

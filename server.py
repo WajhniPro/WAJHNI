@@ -29,12 +29,12 @@ def read_root():
 @app.post("/chat")
 def process_chat(req: ChatRequest):
     # محاولة قراءة المفتاح من Vercel، وفي حال عدم وجوده يتم استخدام المفتاح المباشر
-    api_key = os.getenv("GROQ_API_KEY") or "gsk_ضع_مفتاحك_الحقيقي_هنا_مباشرة"
+    api_key = os.getenv("GROQ_API_KEY") or "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"
     
-    if not api_key or api_key == "gsk_ضع_مفتاحك_الحقيقي_هنا_مباشرة":
+    if not api_key or api_key == "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":
         raise HTTPException(
             status_code=500, 
-            detail="يرجى استبدال gsk_ضع_مفتاحك_الحقيقي_هنا_مباشرة بمفتاح Groq الخاص بك."
+            detail="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"
         )
     
     user_text = (req.query or req.text or "").strip()

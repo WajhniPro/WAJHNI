@@ -1,0 +1,241 @@
+
+
+/**
+ * 1. حساب الانحدار الخطي (Linear Regression) باستخدام معادلة Least Squares
+ * y = m * x + b
+ */
+function calculateLinearRegression(dataPoints) {
+  const n = dataPoints.length;
+  if (n === 0) return { slope: 0, intercept: 0 };
+
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+
+  for (let i = 0; i < n; i++) {
+    const x = i + 1; // السلسلة الزمنية كـ X (1, 2, 3...)
+    const y = dataPoints[i];
+
+    sumX += x;
+    sumY += y;
+    sumXY += (x * y);
+    sumXX += (x * x);
+  }
+
+  // حساب الميل (Slope) والتقاطع (Intercept)
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+
+  return { slope, intercept };
+}
+
+/**
+ * 2. التنبؤ بقيمة الشهر القادم بواسطة الانحدار الخطي
+ */
+function predictNextMonth(monthlyData) {
+  const requestValues = monthlyData.map(item => item.requests);
+  const { slope, intercept } = calculateLinearRegression(requestValues);
+  
+  const nextX = requestValues.length + 1;
+  const predictedValue = Math.round(slope * nextX + intercept);
+
+  // حساب معدل النمو المتوقع مقارنة بآخر شهر
+  const lastValue = requestValues[requestValues.length - 1];
+  const growthPercentage = ((predictedValue - lastValue) / lastValue) * 100;
+
+  return {
+    predictedValue,
+    growthPercentage,
+    slope
+  };
+}
+
+/**
+ * 3. محرك القواعد الإرشادي (Rule-Based Recommendation Engine)
+ */
+function evaluateRules(data, forecastResult) {
+  const metrics = data.operationalMetrics;
+  const recommendations = {};
+
+  // قاعدة 1: التنبؤ بالطلب والقدرة الاستيعابية
+  if (forecastResult.growthPercentage > 10) {
+    recommendations.forecast = "يوصى بزيادة عدد الموظفين استعداداً لزيادة الطلب المتوقعة الشهر القادم.";
+  } else if (forecastResult.slope < 0) {
+    recommendations.forecast = "لا توجد حاجة لزيادة الموارد، ويُنصح بالاستمرار على الطاقة التشغيلية الحالية نظراً لاتجاه الطلب نحو الانخفاض.";
+  } else {
+    recommendations.forecast = "الطلب المتوقع ضمن المعدلات المستقرة، يُنصح بالحفاظ على الطاقة التشغيلية الحالية.";
+  }
+
+  // قاعدة 2: تجاوز اتفاقية مستوى الخدمة (SLA Breach)
+  if (metrics.slaBreachPercentage > 20) {
+    recommendations.sla = `تجاوز SLA بلغ ${metrics.slaBreachPercentage}%! يوصى بزيادة عدد الكاونترات الفعالة خلال ساعات الذروة.`;
+  } else {
+    recommendations.sla = "مستوى التزام SLA ضمن الحدود المقبولة حالياً.";
+  }
+
+  // قاعدة 3: متوسط وقت الانتظار
+  if (metrics.avgWaitingTimeMinutes > metrics.targetWaitTimeMinutes) {
+    recommendations.waitTime = `متوسط وقت الانتظار (${metrics.avgWaitingTimeMinutes} دقيقة) يتجاوز المستهدف (${metrics.targetWaitTimeMinutes} دقيقة). يوصى بمراجعة إجراءات الخدمة لتقليل وقت الانتظار.`;
+  } else {
+    recommendations.waitTime = "أوقات الانتظار ممتازة وتحت المستهدف.";
+  }
+
+  // قاعدة 4: إدارة ساعات الذروة
+  if (metrics.peakHours) {
+    recommendations.peakHours = `تركز الضغط خلال الفترة (${metrics.peakHours}). يوصى بإعادة جدولة الاستراحات وتكثيف الموظفين خلالها.`;
+  }
+
+  // قاعدة 5: الفرع الأكثر ازدحاماً
+  if (metrics.mostBusyBranch) {
+    recommendations.branch = `يمثل [${metrics.mostBusyBranch}] أعلى نسبة ضغط وتجاوز. يوصى بإعادة توزيع الموظفين ودعم هذا الفرع.`;
+  }
+
+  // قاعدة 6: الخدمة الأكثر طلباً
+  if (metrics.mostRequestedService) {
+    recommendations.service = `تمثل [${metrics.mostRequestedService}] أعلى حجم طلب. يوصى بتخصيص كاونتر دائم ومسار سريع لهذه الخدمة.`;
+  }
+
+  // قاعدة 7: الاتجاه الأسبوعي
+  if (metrics.weeklyTrendStatus === 'مستقر') {
+    recommendations.weeklyTrend = "الأداء الأسبوعي مستقر ولا توجد مؤشرات تتطلب تدخلاً فورياً.";
+  } else {
+    recommendations.weeklyTrend = "يوجد تذبذب أسبوعي يتطلب متابعة توزيع الشفتات.";
+  }
+
+  // قاعدة 8: النمو الشهري
+  recommendations.monthlyGrowth = `معدل النمو الشهري المتوقع بناءً على نموذج Linear Regression هو ${forecastResult.growthPercentage.toFixed(1)}%.`;
+
+  // قاعدة 9: كثافة طابور الانتظار
+  if (metrics.currentQueueLoad === 'مرتفع') {
+    recommendations.queueLoad = "حمل الطابور مرتفع حالياً، يوصى بتفعيل خيارات الخدمة الذاتية وتوجيه العملاء للمنصات الرقمية.";
+  } else {
+    recommendations.queueLoad = "حجم الانتظار الحالي طبيعي ويمكن استيعابه بشكل متوازن.";
+  }
+
+  return recommendations;
+}
+
+/**
+ * 4. تحديث بطاقات التوصيات التسع بالنصوص التلقائية
+ */
+function updateRecommendationCards(recommendations) {
+  const mapping = {
+    'card-forecast': recommendations.forecast,
+    'card-sla': recommendations.sla,
+    'card-wait-time': recommendations.waitTime,
+    'card-peak-hours': recommendations.peakHours,
+    'card-branch': recommendations.branch,
+    'card-service': recommendations.service,
+    'card-weekly-trend': recommendations.weeklyTrend,
+    'card-monthly-growth': recommendations.monthlyGrowth,
+    'card-queue-load': recommendations.queueLoad
+  };
+
+  for (const [cardId, text] of Object.entries(mapping)) {
+    const cardEl = document.getElementById(cardId);
+    if (cardEl) {
+      const textEl = cardEl.querySelector('.rec-text');
+      if (textEl && text) {
+        textEl.textContent = text;
+      }
+    }
+  }
+}
+
+/**
+ * 5. تحديث الرسم البياني وإضافة التنبؤ الإحصائي المستقبلي
+ */
+function updateForecastChart(monthlyData, forecastResult) {
+  const labels = monthlyData.map(item => item.month);
+  const dataValues = monthlyData.map(item => item.requests);
+
+  // إدراج شهر التنبؤ المستقبلي
+  labels.push('يوليو (توقع)');
+  
+  // إعداد بيانات السلسلة التاريخية والتنبؤ
+  const historicalSeries = [...dataValues, null];
+  const forecastSeries = Array(dataValues.length - 1).fill(null);
+  forecastSeries.push(dataValues[dataValues.length - 1]); // نقطة ربط
+  forecastSeries.push(forecastResult.predictedValue);
+
+  const ctx = document.getElementById('forecastChart').getContext('2d');
+  
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'الطلبات المكتملة (تاريخي)',
+          data: historicalSeries,
+          borderColor: '#0284c7',
+          backgroundColor: 'rgba(2, 132, 199, 0.1)',
+          fill: true,
+          tension: 0.3,
+          borderWidth: 2
+        },
+        {
+          label: 'التنبؤ المستقبلي (Linear Regression)',
+          data: forecastSeries,
+          borderColor: '#0d9488',
+          borderDash: [6, 6],
+          backgroundColor: 'rgba(13, 148, 136, 0.1)',
+          fill: false,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 5,
+          pointBackgroundColor: '#0d9488'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            font: { family: 'Tajawal' }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          grid: { color: '#e2e8f0' }
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
+    }
+  });
+
+  // تحديث رسالة التنبؤ المباشرة
+  const noteEl = document.getElementById('forecastMessage');
+  if (noteEl) {
+    noteEl.textContent = `يتوقع نموذج Linear Regression أن يبلغ عدد الطلبات ${forecastResult.predictedValue} خلال الشهر القادم.`;
+  }
+}
+
+/**
+ * التشغيل الرئيسي والتنسيق
+ */
+function initDashboard() {
+  // 1. حساب التنبؤ
+  const forecastResult = predictNextMonth(rawDashboardData.monthlyData);
+  
+  // 2. تقييم القواعد وتوليد التوصيات الديناميكية
+  const recommendations = evaluateRules(rawDashboardData, forecastResult);
+  
+  // 3. تحديث واجهة الرسومات والبطاقات
+  updateForecastChart(rawDashboardData.monthlyData, forecastResult);
+  updateRecommendationCards(recommendations);
+}
+
+// تشغيل اللوحة عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', initDashboard);
+</script>
+</body>
+</html>

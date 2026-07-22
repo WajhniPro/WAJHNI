@@ -1,31 +1,12 @@
-"""
-وجّهني — طبقة API المتوافقة مع Vercel و index.html
-"""
-
 import os
-from typing import Optional
-
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from groq import Groq
 
-from core.rag_engine import WajhniRAGEngine
-from core.ticket_generator import TicketGenerator
+app = FastAPI()
 
-# تحميل المتغيرات
-if os.path.exists("config.env"):
-    load_dotenv("config.env")
-else:
-    load_dotenv()
-
-LLAMA_MODEL   = os.getenv("LLAMA_MODEL", "llama-3.3-70b-versatile")
-SERVICES_FILE = os.getenv("SERVICES_FILE", "data/services.json")
-OUTPUT_FOLDER = "output"
-
-app = FastAPI(title="Wajhni API — وجّهني")
-
-# السماح للواجهة بالاتصال بالخادم بدون قيود CORS
+# تفعيل CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,78 +15,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-engine: Optional[WajhniRAGEngine] = None
-ticket_gen: Optional[TicketGenerator] = None
+class ChatRequest(BaseModel):
+    query: str = ""
+    text: str = ""
+    gender: str = None
+    status: str = None
 
-
-@app.on_event("startup")
-def startup():
-    global engine, ticket_gen
-
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if groq_api_key:
-        groq_api_key = groq_api_key.strip().strip('"').strip("'")
-
-    if not groq_api_key:
-        raise RuntimeError("مفتاح GROQ_API_KEY غير موجود في متغيرات البيئة.")
-
-    engine = WajhniRAGEngine(
-        services_file=SERVICES_FILE,
-        api_key=groq_api_key,
-        model_name=LLAMA_MODEL,
-    )
-    engine.initialize()
-    ticket_gen = TicketGenerator(output_folder=OUTPUT_FOLDER)
-
-
-class RequestIn(BaseModel):
-    query: Optional[str] = None
-    text: Optional[str] = None
-    gender: Optional[str] = None
-    status: Optional[str] = None
-
-
-class TicketIn(BaseModel):
-    result: dict
-
-
-# 1. مسار الفحص الرئيسي الجذر (Root) لرفع العلم الأخضر في الواجهة
 @app.get("/")
-@app.get("/api/health")
-def health():
+def read_root():
     return {"status": "ok", "message": "Wajhni API is running online!"}
 
-
-@app.get("/api/services")
-def list_services():
-    if engine is None:
-        raise HTTPException(503, "المحرك لم يُهيَّأ بعد")
-    return engine.services_data
-
-
-# 2. دعم كلا المسارين /chat و /api/request لضمان التوافق التام
 @app.post("/chat")
-@app.post("/api/request")
-def process_request(payload: RequestIn):
-    if engine is None:
-        raise HTTPException(503, "المحرك لم يُهيَّأ بعد")
+def process_chat(req: ChatRequest):
+    # جلب المفتاح داخل الطلب لمنع انهيار السيرفر عند الإقلاع
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured in Vercel Environment Variables.")
     
-    # قبول النص سواء جاء في حقل query أو text
-    user_text = payload.query or payload.text
-    if not user_text or not user_text.strip():
-        raise HTTPException(400, "النص فارغ")
-
-    result = engine.process_request(user_text)
-    result["gender"] = payload.gender
-    result["status"] = payload.status
-    return result
-
-
-@app.post("/api/ticket")
-def make_ticket(payload: TicketIn):
-    if ticket_gen is None:
-        raise HTTPException(503, "مولّد التذاكر لم يُهيَّأ بعد")
-    ticket = ticket_gen.generate(payload.result)
-    if ticket.get("error"):
-        raise HTTPException(400, ticket.get("message", "تعذر توليد التذكرة"))
-    return ticket
+    try:
+        client = Groq(api_key=api_key)
+        user_text = req.query or req.text
+        
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "أنت مساعد ذكي لنظام وجّهني لإمارة منطقة المدينة المنورة. قم بتحليل طلب المستخدم وإرجاع JSON يحتوي على: service_name, department, window_number, required_documents, estimated_time_minutes, confidence"},
+                {"role": "user", "content": user_text}
+            ],
+            response_format={"type": "json_object"}
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

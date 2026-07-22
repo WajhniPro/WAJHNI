@@ -78,7 +78,7 @@ class WajhniRAGEngine:
        embeddings = HuggingFaceInferenceAPIEmbeddings(
           api_key=hf_token,
           model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
+       )
 
        self.vectorstore = FAISS.from_documents(documents, embeddings)
 

@@ -79,7 +79,7 @@ class WajhniRAGEngine:
           model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
             )
 
-    self.vectorstore = FAISS.from_documents(documents, embeddings)
+       self.vectorstore = FAISS.from_documents(documents, embeddings)
 
     def setup_llm(self):
 

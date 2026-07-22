@@ -39,8 +39,9 @@ class WajhniRAGEngine:
             estimated_time = service["estimated_time_minutes"]
 
             match = self.excel_data[
-                self.excel_data["service_name"] == service["service_name"]
+              self.excel_data["اسم_الخدمة"] == service["service_name"]
             ]
+            
 
             if not match.empty:
                 estimated_time = int(match["مدة_الخدمة_دقيقة"].mean())
@@ -59,7 +60,7 @@ class WajhniRAGEngine:
                 page_content=content,
                 metadata={
                     "service_id":    service["id"],
-                    "service_name":  service["اسم_الخدمة"],
+                    "service_name":  service["service_name"],
                     "department":    service["department"],
                     "window_number": service["window_number"],
                     "estimated_time_minutes": estimated_time,
@@ -183,7 +184,7 @@ class WajhniRAGEngine:
 
                     if not match.empty:
                         result["estimated_time_minutes"] = int(
-                            match.iloc[0]["estimated_time_minutes"]
+                             match.iloc[0]["مدة_الخدمة_دقيقة"]
                         )
 
                     break

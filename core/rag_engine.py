@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import requests
 import pandas as pd
 from typing import Optional
 
@@ -10,34 +9,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain_core.embeddings import Embeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_community.vectorstores import FAISS
-
-
-class DirectHFEmbeddings(Embeddings):
-    def __init__(
-        self,
-        api_key: str,
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-    ):
-        self.api_key = api_key
-        self.api_url = f"https://router.huggingface.co/hf-inference/v1/pipeline/feature-extraction/{model_name}"
-        self.headers = {"Authorization": f"Bearer {api_key}"}
-
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        response = requests.post(
-            self.api_url,
-            headers=self.headers,
-            json={"inputs": texts, "options": {"wait_for_model": True}},
-        )
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"HF API Error: {response.status_code} - {response.text}"
-            )
-        return response.json()
-
-    def embed_query(self, text: str) -> list[float]:
-        return self.embed_documents([text])[0]
 
 
 class WajhniRAGEngine:
@@ -100,9 +73,11 @@ class WajhniRAGEngine:
         return documents
 
     def build_vectorstore(self, documents: list):
-        # استخدام الاتصال المباشر لـ Hugging Face لمنع استهلاك RAM ومشاكل الـ DNS
-        hf_token = os.getenv("HF_TOKEN")
-        embeddings = DirectHFEmbeddings(api_key=hf_token)
+        # بناء Embeddings محلياً بسرعة فائقة واستهلاك ذاكرة ضئيل (<90MB RAM)
+        # دون الحاجة إلى API خارجي أو HF_TOKEN
+        embeddings = FastEmbedEmbeddings(
+            model_name="BAAI/bge-small-en-v1.5"
+        )
 
         self.vectorstore = FAISS.from_documents(documents, embeddings)
 
@@ -194,7 +169,6 @@ class WajhniRAGEngine:
 
             for service in self.services_data:
                 if service["id"] == result.get("service_id"):
-                    # تعديل اسم العمود المرجعي إلى "اسم_الخدمة" بدلاً من "service_name"
                     match = self.excel_data[
                         self.excel_data["اسم_الخدمة"] == service["service_name"]
                     ]

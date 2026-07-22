@@ -1,12 +1,13 @@
 import os
+import json
+import re
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import Groq
 
-app = FastAPI()
+app = FastAPI(title="Wajhni API")
 
-# تفعيل CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,8 +19,8 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     query: str = ""
     text: str = ""
-    gender: str = None
-    status: str = None
+    gender: str | None = None
+    status: str | None = None
 
 @app.get("/")
 def read_root():
@@ -27,23 +28,52 @@ def read_root():
 
 @app.post("/chat")
 def process_chat(req: ChatRequest):
-    # جلب المفتاح داخل الطلب لمنع انهيار السيرفر عند الإقلاع
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured in Vercel Environment Variables.")
+        raise HTTPException(
+            status_code=500, 
+            detail="GROQ_API_KEY غير مضاف في متغيرات البيئة بـ Vercel."
+        )
     
+    user_text = (req.query or req.text or "").strip()
+    if not user_text:
+        raise HTTPException(status_code=400, detail="الطلب فارغ.")
+
     try:
         client = Groq(api_key=api_key)
-        user_text = req.query or req.text
+        prompt = f"طلب المستخدم: {user_text}\nالجنس: {req.gender or 'غير محدد'}\nالحالة: {req.status or 'غير محدد'}"
         
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "أنت مساعد ذكي لنظام وجّهني لإمارة منطقة المدينة المنورة. قم بتحليل طلب المستخدم وإرجاع JSON يحتوي على: service_name, department, window_number, required_documents, estimated_time_minutes, confidence"},
-                {"role": "user", "content": user_text}
+                {
+                    "role": "system",
+                    "content": (
+                        "أنت نظام الذكاء الاصطناعي لمشروع 'وجّهني' في إمارة منطقة المدينة المنورة. "
+                        "حلل الطلب وأرجع JSON فقط بدون أي نص إضافي أو تنسيق markdown بالصيغة التالية:\n"
+                        "{\n"
+                        '  "service_id": "S001",\n'
+                        '  "service_name": "اسم الخدمة",\n'
+                        '  "department": "اسم القسم",\n'
+                        '  "window_number": 1,\n'
+                        '  "required_documents": ["مستند 1", "مستند 2"],\n'
+                        '  "estimated_time_minutes": 15,\n'
+                        '  "confidence": "عالية",\n'
+                        '  "clarification_needed": false,\n'
+                        '  "clarification_question": ""\n'
+                        "}"
+                    )
+                },
+                {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
         )
-        return completion.choices[0].message.content
+        
+        raw_content = completion.choices[0].message.content
+        
+        # تنظيف النص من أي علامات markdown إذا وجدت
+        cleaned_content = re.sub(r"^```json\s*|\s*```$", "", raw_content.strip(), flags=re.MULTILINE)
+        
+        return json.loads(cleaned_content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

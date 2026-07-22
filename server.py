@@ -28,14 +28,8 @@ def read_root():
 
 @app.post("/chat")
 def process_chat(req: ChatRequest):
-    # محاولة قراءة المفتاح من Vercel، وفي حال عدم وجوده يتم استخدام المفتاح المباشر
+    # ضع المفتاح الجديد هنا بين التنصيص
     api_key = os.getenv("GROQ_API_KEY") or "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"
-    
-    if not api_key or api_key == "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":
-        raise HTTPException(
-            status_code=500, 
-            detail="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"
-        )
     
     user_text = (req.query or req.text or "").strip()
     if not user_text:
@@ -72,10 +66,9 @@ def process_chat(req: ChatRequest):
         )
         
         raw_content = completion.choices[0].message.content
-        
-        # تنظيف النص من أي علامات markdown إذا وجدت
         cleaned_content = re.sub(r"^```json\s*|\s*```$", "", raw_content.strip(), flags=re.MULTILINE)
         
         return json.loads(cleaned_content)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print("Groq Error:", str(e))
+        raise HTTPException(status_code=500, detail=f"خطأ في الاتصال بالذكاء الاصطناعي: {str(e)}")

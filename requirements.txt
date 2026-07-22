@@ -3,6 +3,7 @@ uvicorn
 pydantic
 python-dotenv
 pandas
+openpyxl
 faiss-cpu
 langchain-core
 langchain-community

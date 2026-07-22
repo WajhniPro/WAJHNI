@@ -15,15 +15,10 @@ from langchain_community.vectorstores import FAISS
 
 
 class DirectHFEmbeddings(Embeddings):
-    """صنف embeddings مخصص يتصل مباشرة بـ Router Hugging Face الحديث
-
-    لتفادي مشاكل DNS والروابط القديمة في LangChain.
-    """
-
     def __init__(
         self,
         api_key: str,
-        model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
     ):
         self.api_key = api_key
         self.api_url = f"https://router.huggingface.co/hf-inference/v1/pipeline/feature-extraction/{model_name}"

@@ -2,15 +2,9 @@ import json
 import os
 import re
 from typing import Optional
-
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_community.embeddings import FastEmbedEmbeddings
-from langchain_community.vectorstores import FAISS
-
 
 class WajhniRAGEngine:
 
@@ -19,66 +13,32 @@ class WajhniRAGEngine:
         self.api_key = api_key
         self.model_name = model_name
         self.services_data = []
-        self.excel_data = None
-        self.vectorstore = None
+        self.formatted_context = ""
         self.llm = None
         self.rag_chain = None
 
-    def load_excel_times(self):
-        self.excel_data = pd.read_excel(
-            "data/sedco_dashboard_full_3000_formatted.xlsx"
-        )
-
-    def load_services(self) -> list:
+    def load_services(self):
+        """تحميل الخدمات وقراءتها مباشرة بدون الحاجة لـ Pandas"""
         with open(self.services_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        self.services_data = data["services"]
-        documents = []
-
+        self.services_data = data.get("services", [])
+        
+        # تجهيز سياق النص بالكامل لـ Groq
+        docs_summary = []
         for service in self.services_data:
-            estimated_time = service["estimated_time_minutes"]
-
-            match = self.excel_data[
-                self.excel_data["اسم_الخدمة"] == service["service_name"]
-            ]
-
-            if not match.empty:
-                estimated_time = int(match["مدة_الخدمة_دقيقة"].mean())
-
             content = f"""
-الخدمة: {service['service_name']}
-القسم: {service['department']}
-رقم الشباك: {service['window_number']}
-الوصف: {service['description']}
-الكلمات المفتاحية: {', '.join(service['keywords'])}
-المستندات المطلوبة: {', '.join(service['required_documents'])}
-الوقت التقديري: {estimated_time} دقيقة
-رقم الخدمة: {service['id']}
-""".strip()
-            doc = Document(
-                page_content=content,
-                metadata={
-                    "service_id": service["id"],
-                    "service_name": service["service_name"],
-                    "department": service["department"],
-                    "window_number": service["window_number"],
-                    "estimated_time_minutes": estimated_time,
-                },
-            )
-            documents.append(doc)
+- خدمة ({service['id']}): {service['service_name']}
+  القسم: {service['department']} | شباك: {service['window_number']}
+  الوصف: {service['description']}
+  الكلمات المفتاحية: {', '.join(service.get('keywords', []))}
+  المستندات المطلوب: {', '.join(service.get('required_documents', []))}
+  الوقت التقديري: {service.get('estimated_time_minutes', 10)} دقيقة
+"""
+            docs_summary.append(content)
 
-        print(f" تم تحميل {len(documents)} خدمة من الملف.")
-        return documents
-
-    def build_vectorstore(self, documents: list):
-        # استخدام batch_size محدد لمنع الـ Spikes في الذاكرة وتفادي خطأ Status 137 على Render
-        embeddings = FastEmbedEmbeddings(
-            model_name="BAAI/bge-small-en-v1.5",
-            batch_size=16
-        )
-
-        self.vectorstore = FAISS.from_documents(documents, embeddings)
+        self.formatted_context = "\n".join(docs_summary)
+        print(f"تم تحميل {len(self.services_data)} خدمة من الملف.")
 
     def setup_llm(self):
         self.llm = ChatGroq(
@@ -87,13 +47,8 @@ class WajhniRAGEngine:
             temperature=0.1,
             max_tokens=1000,
         )
-        print(f" تم تهيئة النموذج: {self.model_name}")
 
     def build_chain(self):
-        retriever = self.vectorstore.as_retriever(
-            search_type="similarity", search_kwargs={"k": 3}
-        )
-
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 (
@@ -103,11 +58,10 @@ class WajhniRAGEngine:
 
 قواعد مهمة جداً:
 1. اختر خدمة واحدة فقط — الأنسب لطلب المستفيد
-2. استخدم فقط المعلومات الموجودة في السياق أدناه
+2. استخدم فقط المعلومات الموجودة في قائمة الخدمات المتاحة
 3. إذا لم تجد خدمة مناسبة، قل ذلك بوضوح
 4. ردك يجب أن يكون JSON فقط بدون أي نص إضافي
 5. جميع القيم في JSON يجب أن تكون باللغة العربية
-
 
 الخدمات المتاحة في النظام:
 {context}
@@ -122,35 +76,22 @@ class WajhniRAGEngine:
   "estimated_time_minutes": الوقت كرقم,
   "confidence": "عالية أو متوسطة أو منخفضة",
   "clarification_needed": true أو false,
-  "clarification_question": "السؤال التوضيحي إذا احتجت توضيحاً وإلا اتركه فارغاً"
+  "clarification_question": "السؤال التوضيحي إن وجد"
 }}""",
                 ),
                 ("human", "طلب المستفيد: {question}"),
             ]
         )
 
-        def format_docs(docs):
-            return "\n\n---\n\n".join([doc.page_content for doc in docs])
-
-        self.rag_chain = (
-            {
-                "context": retriever | format_docs,
-                "question": RunnablePassthrough(),
-            }
-            | prompt_template
-            | self.llm
-            | StrOutputParser()
-        )
-
-        print("تم بناء سلسلة RAG بنجاح.")
+        self.rag_chain = prompt_template | self.llm | StrOutputParser()
 
     def process_request(self, user_input: str) -> dict:
-        print(f"\n🔍 معالجة الطلب: {user_input}")
-
         try:
-            raw_response = self.rag_chain.invoke(user_input)
-            result = self._parse_llm_response(raw_response)
-            return result
+            raw_response = self.rag_chain.invoke({
+                "context": self.formatted_context,
+                "question": user_input
+            })
+            return self._parse_llm_response(raw_response)
         except Exception as e:
             return {
                 "error": True,
@@ -159,26 +100,15 @@ class WajhniRAGEngine:
 
     def _parse_llm_response(self, raw_response: str) -> dict:
         cleaned = raw_response.strip()
-
         json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        
         if json_match:
-            json_str = json_match.group()
-            result = json.loads(json_str)
-            result["error"] = False
-
-            for service in self.services_data:
-                if service["id"] == result.get("service_id"):
-                    match = self.excel_data[
-                        self.excel_data["اسم_الخدمة"] == service["service_name"]
-                    ]
-
-                    if not match.empty:
-                        result["estimated_time_minutes"] = int(
-                            match.iloc[0]["مدة_الخدمة_دقيقة"]
-                        )
-                    break
-
-            return result
+            try:
+                result = json.loads(json_match.group())
+                result["error"] = False
+                return result
+            except json.JSONDecodeError:
+                pass
 
         return {
             "error": True,
@@ -186,10 +116,8 @@ class WajhniRAGEngine:
         }
 
     def initialize(self):
-        print("\n بدء تهيئة نظام وجّهني...\n")
-        self.load_excel_times()
-        documents = self.load_services()
-        self.build_vectorstore(documents)
+        print("\nبدء تهيئة نظام وجّهني السريع...")
+        self.load_services()
         self.setup_llm()
         self.build_chain()
-        print("\n النظام جاهز لاستقبال طلبات المستفيدين.\n")
+        print("النظام جاهز على Vercel بدون ثقل الذاكرة! 🚀")

@@ -5,9 +5,9 @@ python-dotenv
 pandas
 openpyxl
 faiss-cpu
+fastembed
 langchain-core
 langchain-community
 langchain-groq
 langchain-text-splitters
-huggingface_hub
 requests

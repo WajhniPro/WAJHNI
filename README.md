@@ -8,19 +8,35 @@
 ```
 wajhni/
 │
-├── main.py                  ← نقطة التشغيل الرئيسية
-├── config.env               ← ضع مفتاح API هنا
-├── requirements.txt         ← المكتبات المطلوبة
+├── app.py                      ← نقطة التشغيل الرئيسية (Flask) — يشغّل Dashboard + الكيوسك + الـ API
+├── main.py                     ← كيوسك طرفية (اختياري، لا يزال يعمل مستقلاً)
+├── config.env                  ← ضع مفتاح Groq API هنا (انسخه من config.env.example)
+├── config.env.example          ← نموذج فارغ لملف الإعدادات
+├── requirements.txt            ← المكتبات المطلوبة (أُضيف Flask)
+├── FLASK_SETUP.md              ← دليل التشغيل التفصيلي لهذا الجزء
+├── server.py                   ← (قديم) خادم FastAPI منفصل على Vercel، لم يعد ضرورياً
 │
 ├── core/
-│   ├── rag_engine.py        ← محرك RAG + LangChain + Llama
-│   └── ticket_generator.py  ← مولّد التذاكر بالعربية
+│   ├── rag_engine.py           ← محرك RAG + LangChain + Llama (لم يتغيّر)
+│   ├── ticket_generator.py     ← مولّد التذاكر بالعربية (لم يتغيّر)
+│   ├── data_pipeline.py        ← 🆕 يحسب كل مؤشرات Dashboard من ملف الإكسل مباشرة
+│   └── excel_writer.py         ← 🆕 يضيف سطر التذكرة الجديدة إلى ملف الإكسل
 │
 ├── data/
-│   └── services.json        ← بيانات الخدمات (عدّلها حسب المركز)
+│   ├── services.json           ← بيانات الخدمات (عدّلها حسب المركز)
+│   └── sedco_dashboard_full_3000_formatted.xlsx   ← 🆕 مصدر بيانات Dashboard الوحيد (يتحدّث تلقائياً)
+│
+├── templates/
+│   ├── index.html              ← 🆕 واجهة Dashboard (نفس التصميم القديم)
+│   └── kiosk.html              ← 🆕 واجهة الكيوسك (متصلة بالخادم الحقيقي الآن)
+│
+├── static/
+│   ├── style.css                ← 🆕 تصميم Dashboard
+│   ├── script.js                ← 🆕 Linear Regression + Rule Engine + Polling
+│   └── chart.min.js             ← 🆕 مكتبة الرسوم البيانية (محلية، بدون CDN)
 │
 └── output/
-    └── ticket_*.txt         ← التذاكر المطبوعة (تُنشأ تلقائياً)
+    └── ticket_*.txt             ← التذاكر المطبوعة (تُنشأ تلقائياً)التذاكر المطبوعة (تُنشأ تلقائياً)
 ```
 
 ---
